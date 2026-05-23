@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ChurnGuard Predictor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .card {
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 40px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.4);
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      margin-bottom: 6px;
+      color: #38bdf8;
+    }
+
+    p.subtitle {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-bottom: 28px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.82rem;
+      color: #94a3b8;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px 14px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #e2e8f0;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border 0.2s;
+    }
+
+    input:focus, select:focus {
+      border-color: #38bdf8;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      background: #38bdf8;
+      color: #0f172a;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover { background: #7dd3fc; }
+
+    .result {
+      margin-top: 24px;
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      display: none;
+    }
+
+    .result.churn {
+      background: #7f1d1d;
+      border: 1px solid #ef4444;
+    }
+
+    .result.stay {
+      background: #14532d;
+      border: 1px solid #22c55e;
+    }
+
+    .result h2 {
+      font-size: 1.4rem;
+      margin-bottom: 6px;
+    }
+
+    .result p {
+      font-size: 0.9rem;
+      color: #cbd5e1;
+    }
+
+    .loader {
+      display: none;
+      text-align: center;
+      margin-top: 16px;
+      color: #94a3b8;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔮 ChurnGuard</h1>
+    <p class="subtitle">Predict if a customer is likely to churn</p>
+
+    <div class="form-group">
+      <label>Tenure (months)</label>
+      <input type="number" id="tenure" placeholder="e.g. 24" min="1"/>
+    </div>
+
+    <div class="form-group">
+      <label>Monthly Charges ($)</label>
+      <input type="number" id="monthlyCharges" placeholder="e.g. 65.50" step="0.01"/>
+    </div>
+
+    <div class="form-group">
+      <label>Total Charges ($)</label>
+      <input type="number" id="totalCharges" placeholder="e.g. 1500.00" step="0.01"/>
+    </div>
+
+    <div class="form-group">
+      <label>Senior Citizen</label>
+      <select id="seniorCitizen">
+        <option value="0">No</option>
+        <option value="1">Yes</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Contract Type</label>
+      <select id="contract">
+        <option value="0">Month-to-month</option>
+        <option value="1">One year</option>
+        <option value="2">Two year</option>
+      </select>
+    </div>
+
+    <button onclick="predict()">Predict</button>
+
+    <div class="loader" id="loader">⏳ Predicting...</div>
+
+    <div class="result" id="result">
+      <h2 id="resultText"></h2>
+      <p id="resultProb"></p>
+    </div>
+  </div>
+
+  <script>
+    async function predict() {
+      const data = {
+        tenure: document.getElementById('tenure').value,
+        monthlyCharges: document.getElementById('monthlyCharges').value,
+        totalCharges: document.getElementById('totalCharges').value,
+        seniorCitizen: document.getElementById('seniorCitizen').value,
+        contract: document.getElementById('contract').value
+      };
+
+      if (!data.tenure || !data.monthlyCharges || !data.totalCharges) {
+        alert('Please fill in all fields');
+        return;
+      }
+
+      document.getElementById('loader').style.display = 'block';
+      document.getElementById('result').style.display = 'none';
+
+      try {
+        const response = await fetch('http://127.0.0.1:5000/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+        const resultDiv = document.getElementById('result');
+        const resultText = document.getElementById('resultText');
+        const resultProb = document.getElementById('resultProb');
+
+        resultDiv.className = 'result ' + (result.prediction === 'CHURN' ? 'churn' : 'stay');
+        resultText.textContent = result.prediction === 'CHURN'
+          ? '⚠️ Likely to CHURN'
+          : '✅ Likely to STAY';
+        resultProb.textContent = `Churn probability: ${result.probability}%`;
+
+        resultDiv.style.display = 'block';
+      } catch (err) {
+        alert('Error connecting to server. Make sure app.py is running.');
+      }
+
+      document.getElementById('loader').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
